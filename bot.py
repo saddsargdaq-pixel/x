@@ -9,8 +9,8 @@ import aiosqlite
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-BOT_TOKEN  = os.getenv("BOT_TOKEN", "8680033259:AAHfU9D1LXg5b_mR7nxkt8_0LyM8vbqGUbQ")
-SERVER_URL = os.getenv("SERVER_URL", "https://ambient-manual-providing-remix.trycloudflare.com")
+BOT_TOKEN  = os.getenv("BOT_TOKEN", "token")
+SERVER_URL = os.getenv("SERVER_URL", "domain")
 PORT       = int(os.getenv("PORT", "8080"))
 DB_PATH    = os.getenv("DB_PATH", "hockey.db")
 
