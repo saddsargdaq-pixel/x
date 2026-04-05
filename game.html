@@ -491,10 +491,7 @@ var Game = {
       if (host) {
         PVP.ws.send(JSON.stringify({ type:'puck', x:puck.x, y:puck.y, vx:puck.vx, vy:puck.vy }));
       }
-      // Debug every 60 frames
-      if (loopTick % 60 === 0) {
-        D('p'+pnum+' host='+host+' my=('+Math.round(myPad.x)+','+Math.round(myPad.y)+') opp=('+Math.round(oppPad.x)+','+Math.round(oppPad.y)+') puck=('+Math.round(puck.x)+','+Math.round(puck.y)+')');
-      }
+
     }
     if (!gameOver) raf = requestAnimationFrame(Game.loop);
   }
@@ -752,28 +749,30 @@ var PVP = {
     D('WS connecting p' + pn);
     PVP.ws = new WebSocket(url);
 
+    var _rxCount = 0;
     PVP.ws.onopen = function() {
       D('WS open p' + pn + ' host=' + host);
+      // Шлём ready — сервер подождёт обоих и пришлёт start
       PVP.ws.send(JSON.stringify({ type:'ready', char:myChar }));
-      // Send initial paddle position immediately
-      if (myPad) {
-        PVP.ws.send(JSON.stringify({ type:'paddle', x:myPad.x, y:myPad.y, char:myChar }));
-      }
-      // Keep sending paddle even before game starts (heartbeat)
+      // Heartbeat paddle пока игра не началась
       PVP._hb = setInterval(function() {
         if (PVP.ws && PVP.ws.readyState === WebSocket.OPEN && myPad) {
           PVP.ws.send(JSON.stringify({ type:'paddle', x:myPad.x, y:myPad.y, char:myChar }));
         }
-      }, 100);
+      }, 200);
     };
 
+    var _rxPaddle=0, _rxPuck=0, _rxOther=0;
     PVP.ws.onmessage = function(e) {
       var m; try { m = JSON.parse(e.data); } catch(err) { return; }
-      D('rx: ' + m.type);
+      if (m.type==='paddle') _rxPaddle++;
+      else if (m.type==='puck') _rxPuck++;
+      else _rxOther++;
+      D('p'+pnum+' rx pad='+_rxPaddle+' puck='+_rxPuck+' other='+_rxOther);
       if (m.type === 'start') {
         active = true;
         if (PVP._hb) { clearInterval(PVP._hb); PVP._hb = null; }
-        D('GAME START p'+pnum+' host='+host);
+        D('START p'+pnum+' host='+host);
       } else if (m.type === 'paddle') {
         if (oppPad) {
           oppPad.px = oppPad.x; oppPad.py = oppPad.y;

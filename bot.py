@@ -9,8 +9,8 @@ import aiosqlite
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, ContextTypes
 
-BOT_TOKEN  = os.getenv("BOT_TOKEN", "token")
-SERVER_URL = os.getenv("SERVER_URL", "domain")
+BOT_TOKEN  = os.getenv("BOT_TOKEN", "YOUR_TOKEN")
+SERVER_URL = os.getenv("SERVER_URL", "https://your-domain.com")
 PORT       = int(os.getenv("PORT", "8080"))
 DB_PATH    = os.getenv("DB_PATH", "hockey.db")
 
@@ -193,22 +193,41 @@ async def ws_game(req: web.Request):
         await ws.close()
         return ws
 
-    key, other = ("p1", "p2") if pnum == 1 else ("p2", "p1")
+    key   = "p1" if pnum == 1 else "p2"
+    other = "p2" if pnum == 1 else "p1"
     room[key] = ws
+    log.info(f"Player {pnum} connected to room {rid}")
 
-    if room["p1"] and room["p2"]:
+    # Если оба уже подключены — стартуем сразу
+    if room["p1"] and room["p2"] and not room.get("started"):
+        room["started"] = True
+        log.info(f"Room {rid}: both connected, sending start")
         await room["p1"].send_json({"type": "start"})
         await room["p2"].send_json({"type": "start"})
 
     async for msg in ws:
         if msg.type == WSMsgType.TEXT:
-            try: data = json.loads(msg.data)
-            except: continue
-            ows = room.get(other)
-            if not ows or ows.closed: continue
+            try:
+                data = json.loads(msg.data)
+            except:
+                continue
+
             t = data.get("type")
+
+            # Когда второй игрок шлёт ready — стартуем если ещё не стартовали
+            if t == "ready":
+                if room["p1"] and room["p2"] and not room.get("started"):
+                    room["started"] = True
+                    log.info(f"Room {rid}: ready received, sending start")
+                    await room["p1"].send_json({"type": "start"})
+                    await room["p2"].send_json({"type": "start"})
+                continue
+
+            ows = room.get(other)
+            if not ows or ows.closed:
+                continue
+
             if t == "paddle":
-                # Просто ретранслируем — клиент сам флипает
                 await ows.send_json({
                     "type": "paddle",
                     "x": data["x"],
@@ -216,7 +235,6 @@ async def ws_game(req: web.Request):
                     "char": data.get("char", "balance")
                 })
             elif t == "puck" and pnum == 1:
-                # Хост шлёт пак — просто ретранслируем
                 await ows.send_json({
                     "type": "puck",
                     "x": data["x"],
@@ -231,9 +249,12 @@ async def ws_game(req: web.Request):
                 if max(p1s, p2s) >= 5 and not room.get("scored"):
                     room["scored"] = True
                     asyncio.create_task(record_pvp(room["p1_id"], room["p2_id"], p1s, p2s))
+
         elif msg.type in (WSMsgType.ERROR, WSMsgType.CLOSE):
             break
 
+    log.info(f"Player {pnum} disconnected from room {rid}")
+    room[key] = None
     ows = room.get(other)
     if ows and not ows.closed:
         await ows.send_json({"type": "disconnect"})
