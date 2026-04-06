@@ -17,8 +17,6 @@ DB_PATH    = os.getenv("DB_PATH", "hockey.db")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 log = logging.getLogger("hockey")
 GAME_HTML = Path(__file__).parent / "game.html"
-
-─── DB ──────────────────────────────────────────────────────
 async def init_db():
     async with aiosqlite.connect(DB_PATH) as db:
         await db.execute("""
@@ -83,7 +81,6 @@ async def get_leaderboard(db, n: int = 10):
     ) as c:
         return await c.fetchall()
 
-─── ELO ─────────────────────────────────────────────────────
 SCORE_ELO = {(5,0):50, (5,1):40, (5,2):30, (5,3):20, (5,4):10}
 def calc_elo_pvp(p1s: int, p2s: int):
     key = (max(p1s,p2s), min(p1s,p2s))
@@ -100,7 +97,6 @@ def calc_elo_bot(ms: int, os: int, diff: str) -> int:
 
 def fmt(d: int) -> str: return f"+{d}" if d > 0 else str(d)
 
-─── MATCHMAKING ─────────────────────────────────────────────
 class Queue:
     def __init__(self):  # ИСПРАВЛЕНО: было def init(self):
         self._q: list = []
@@ -125,7 +121,7 @@ rooms: dict = {}
 
 def gen_room(): return "".join(random.choices(string.ascii_uppercase + string.digits, k=8))
 
-─── WEBSOCKETS ───────────────────────────────────────────────
+
 async def ws_matchmaking(req: web.Request):
     ws = web.WebSocketResponse(heartbeat=25, max_msg_size=0)
     await ws.prepare(req)
@@ -258,7 +254,6 @@ async def record_pvp(p1id: int, p2id: int, p1s: int, p2s: int):
         await db.commit()
     log.info(f"PvP {p1id} {p1s}:{p2s} {p2id} | ELO {fmt(d1)}/{fmt(d2)}")
 
-─── API ─────────────────────────────────────────────────────
 async def api_result(req: web.Request):
     try: data = await req.json()
     except Exception: return web.Response(text="bad json", status=400)
@@ -307,7 +302,6 @@ async def serve_game(req: web.Request):
 async def health(req):
     return web.Response(text="OK", headers={"Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "*"})
 
-─── BOT ─────────────────────────────────────────────────────
 CHAR_NAMES = {"balance": "Баланс", "fast": "Быстрый", "tank": "Танк"}
 def main_kb():
     return InlineKeyboardMarkup([
@@ -408,7 +402,6 @@ async def cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             elo = await get_elo(db, u.id)
         await q.edit_message_text(f"Air Hockey\n\nELO: {elo}\n\nВыбери режим: ", reply_markup=main_kb())
 
-─── MAIN ─────────────────────────────────────────────────────
 async def main():
     await init_db()
     tg_app = Application.builder().token(BOT_TOKEN).build()
